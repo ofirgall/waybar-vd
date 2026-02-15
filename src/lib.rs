@@ -346,6 +346,7 @@ mod tests {
                 populated: true,
                 window_count: 0,
                 workspaces: vec![],
+                status: String::new(),
             },
             crate::vdesk::VirtualDesktop {
                 id: 3,
@@ -354,6 +355,7 @@ mod tests {
                 populated: false,
                 window_count: 0,
                 workspaces: vec![],
+                status: String::new(),
             },
         ];
 

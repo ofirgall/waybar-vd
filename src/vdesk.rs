@@ -15,6 +15,7 @@ pub struct VirtualDesktop {
     #[serde(rename = "windows")]
     pub window_count: u32,
     pub workspaces: Vec<u32>,
+    pub status: String,
 }
 
 impl VirtualDesktop {
@@ -26,6 +27,7 @@ impl VirtualDesktop {
             populated: false,
             window_count: 0,
             workspaces: Vec::new(),
+            status: String::new(),
         }
     }
 }
@@ -111,7 +113,8 @@ mod tests {
             "focused": true,
             "populated": true,
             "workspaces": [1, 2],
-            "windows": 2
+            "windows": 2,
+            "status": "active"
         }]"#;
         manager.parse_virtual_desktop_state(initial_state).unwrap();
         assert_eq!(manager.get_virtual_desktops().len(), 1);
@@ -123,14 +126,16 @@ mod tests {
             "focused": false,
             "populated": true,
             "workspaces": [1, 2],
-            "windows": 3
+            "windows": 3,
+            "status": "inactive"
         },{
             "id": 2,
             "name": "󰍉 Research",
             "focused": true,
             "populated": true,
             "workspaces": [3, 4],
-            "windows": 1
+            "windows": 1,
+            "status": "active"
         }]"#;
         manager.parse_virtual_desktop_state(updated_state).unwrap();
         
@@ -140,9 +145,11 @@ mod tests {
         let focus_vdesk = manager.virtual_desktops.get(&1).unwrap();
         assert!(!focus_vdesk.focused);
         assert_eq!(focus_vdesk.window_count, 3);
+        assert_eq!(focus_vdesk.status, "inactive");
 
         let research_vdesk = manager.virtual_desktops.get(&2).unwrap();
         assert!(research_vdesk.focused);
+        assert_eq!(research_vdesk.status, "active");
     }
 
     #[test]

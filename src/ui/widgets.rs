@@ -362,6 +362,7 @@ mod tests {
             populated,
             window_count: if populated { 2 } else { 0 },
             workspaces: if populated { vec![id, id + 10] } else { vec![] },
+            status: String::new(),
         }
     }
 
