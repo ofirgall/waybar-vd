@@ -94,7 +94,7 @@ impl VirtualDesktopWidget {
         }
 
         if !vdesk.status.is_empty() {
-            let status_class = format!("vdesk-status-{}", vdesk.status);
+            let status_class = format!("vdesk-status-{}", vdesk.status.to_lowercase());
             style_context.add_class(&status_class);
             log::debug!("Applied CSS class '{}' to button for vdesk {}", status_class, vdesk.id);
         }
@@ -175,10 +175,10 @@ impl VirtualDesktopWidget {
         // Toggle status class if needed
         if self.status != vdesk.status {
             if !self.status.is_empty() {
-                style_context.remove_class(&format!("vdesk-status-{}", self.status));
+                style_context.remove_class(&format!("vdesk-status-{}", self.status.to_lowercase()));
             }
             if !vdesk.status.is_empty() {
-                style_context.add_class(&format!("vdesk-status-{}", vdesk.status));
+                style_context.add_class(&format!("vdesk-status-{}", vdesk.status.to_lowercase()));
             }
             updated = true;
         }
