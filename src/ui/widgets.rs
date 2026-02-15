@@ -19,6 +19,7 @@ pub struct VirtualDesktopWidget {
     pub tooltip_text: String,
     pub focused: bool,
     pub populated: bool,
+    pub status: String,
 }
 
 impl VirtualDesktopWidget {
@@ -92,6 +93,12 @@ impl VirtualDesktopWidget {
             log::debug!("Applied CSS class 'vdesk-unfocused' to button for vdesk {}", vdesk.id);
         }
 
+        if !vdesk.status.is_empty() {
+            let status_class = format!("vdesk-status-{}", vdesk.status);
+            style_context.add_class(&status_class);
+            log::debug!("Applied CSS class '{}' to button for vdesk {}", status_class, vdesk.id);
+        }
+
         // Set initial visibility based on configuration using GTK's built-in visibility
         let is_visible = config.show_empty || vdesk.populated || vdesk.focused;
         log::debug!("VDesk {} visibility check: show_empty={}, populated={}, focused={} => visible={}", 
@@ -110,6 +117,7 @@ impl VirtualDesktopWidget {
             tooltip_text,
             focused: vdesk.focused,
             populated: vdesk.populated,
+            status: vdesk.status.clone(),
         }
     }
 
@@ -164,9 +172,21 @@ impl VirtualDesktopWidget {
             updated = true;
         }
         
+        // Toggle status class if needed
+        if self.status != vdesk.status {
+            if !self.status.is_empty() {
+                style_context.remove_class(&format!("vdesk-status-{}", self.status));
+            }
+            if !vdesk.status.is_empty() {
+                style_context.add_class(&format!("vdesk-status-{}", vdesk.status));
+            }
+            updated = true;
+        }
+
         // Update internal state for the next cycle
         self.focused = vdesk.focused;
         self.populated = vdesk.populated;
+        self.status = vdesk.status.clone();
 
         updated
     }
