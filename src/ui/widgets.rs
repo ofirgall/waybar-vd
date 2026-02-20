@@ -96,7 +96,10 @@ impl VirtualDesktopWidget {
         if !vdesk.status.is_empty() {
             let status_class = format!("vdesk-status-{}", vdesk.status.to_lowercase());
             style_context.add_class(&status_class);
-            log::debug!("Applied CSS class '{}' to button for vdesk {}", status_class, vdesk.id);
+            let focus_suffix = if vdesk.focused { "focused" } else { "unfocused" };
+            let status_focus_class = format!("vdesk-status-{}-{}", vdesk.status.to_lowercase(), focus_suffix);
+            style_context.add_class(&status_focus_class);
+            log::debug!("Applied CSS classes '{}', '{}' to button for vdesk {}", status_class, status_focus_class, vdesk.id);
         }
 
         // Set initial visibility based on configuration using GTK's built-in visibility
@@ -172,13 +175,26 @@ impl VirtualDesktopWidget {
             updated = true;
         }
         
-        // Toggle status class if needed
+        // Toggle status base class if needed
         if self.status != vdesk.status {
             if !self.status.is_empty() {
                 style_context.remove_class(&format!("vdesk-status-{}", self.status.to_lowercase()));
             }
             if !vdesk.status.is_empty() {
                 style_context.add_class(&format!("vdesk-status-{}", vdesk.status.to_lowercase()));
+            }
+            updated = true;
+        }
+
+        // Toggle status-focused/unfocused class when either status or focus changes
+        if self.status != vdesk.status || self.focused != vdesk.focused {
+            if !self.status.is_empty() {
+                let old_suffix = if self.focused { "focused" } else { "unfocused" };
+                style_context.remove_class(&format!("vdesk-status-{}-{}", self.status.to_lowercase(), old_suffix));
+            }
+            if !vdesk.status.is_empty() {
+                let new_suffix = if vdesk.focused { "focused" } else { "unfocused" };
+                style_context.add_class(&format!("vdesk-status-{}-{}", vdesk.status.to_lowercase(), new_suffix));
             }
             updated = true;
         }
