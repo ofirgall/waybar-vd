@@ -100,6 +100,9 @@ impl VirtualDesktopWidget {
             let status_focus_class = format!("vdesk-status-{}-{}", vdesk.status.to_lowercase(), focus_suffix);
             style_context.add_class(&status_focus_class);
             log::debug!("Applied CSS classes '{}', '{}' to button for vdesk {}", status_class, status_focus_class, vdesk.id);
+        } else {
+            style_context.add_class("vdesk-nostatus");
+            log::debug!("Applied CSS class 'vdesk-nostatus' to button for vdesk {}", vdesk.id);
         }
 
         // Set initial visibility based on configuration using GTK's built-in visibility
@@ -179,9 +182,13 @@ impl VirtualDesktopWidget {
         if self.status != vdesk.status {
             if !self.status.is_empty() {
                 style_context.remove_class(&format!("vdesk-status-{}", self.status.to_lowercase()));
+            } else {
+                style_context.remove_class("vdesk-nostatus");
             }
             if !vdesk.status.is_empty() {
                 style_context.add_class(&format!("vdesk-status-{}", vdesk.status.to_lowercase()));
+            } else {
+                style_context.add_class("vdesk-nostatus");
             }
             updated = true;
         }
