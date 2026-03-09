@@ -222,6 +222,8 @@ pub struct WidgetManager {
     widget_order: Vec<u32>,
     config: ModuleConfig,
     metrics: Arc<PerformanceMetrics>,
+    first_visible_id: Option<u32>,
+    last_visible_id: Option<u32>,
 }
 
 impl WidgetManager {
@@ -233,6 +235,8 @@ impl WidgetManager {
             widget_order: Vec::new(),
             config,
             metrics,
+            first_visible_id: None,
+            last_visible_id: None,
         }
     }
 
@@ -303,6 +307,9 @@ impl WidgetManager {
             self.optimize_widget_reordering(new_order)?;
         }
 
+        // 6. Update first/last visible CSS classes
+        self.update_first_last_classes(&sorted_vdesks);
+
         Ok(())
     }
 
@@ -331,6 +338,46 @@ impl WidgetManager {
     /// Get configuration reference
     pub fn config(&self) -> &ModuleConfig {
         &self.config
+    }
+
+    /// Update `vdesk-first` and `vdesk-last` CSS classes based on current visibility
+    fn update_first_last_classes(&mut self, sorted_vdesks: &[VirtualDesktop]) {
+        let visible_ids: Vec<u32> = sorted_vdesks
+            .iter()
+            .filter(|vd| self.config.show_empty || vd.populated || vd.focused)
+            .map(|vd| vd.id)
+            .collect();
+
+        let new_first = visible_ids.first().copied();
+        let new_last = visible_ids.last().copied();
+
+        if new_first != self.first_visible_id {
+            if let Some(old_id) = self.first_visible_id {
+                if let Some(w) = self.widgets.get(&old_id) {
+                    w.button.style_context().remove_class("vdesk-first");
+                }
+            }
+            if let Some(new_id) = new_first {
+                if let Some(w) = self.widgets.get(&new_id) {
+                    w.button.style_context().add_class("vdesk-first");
+                }
+            }
+            self.first_visible_id = new_first;
+        }
+
+        if new_last != self.last_visible_id {
+            if let Some(old_id) = self.last_visible_id {
+                if let Some(w) = self.widgets.get(&old_id) {
+                    w.button.style_context().remove_class("vdesk-last");
+                }
+            }
+            if let Some(new_id) = new_last {
+                if let Some(w) = self.widgets.get(&new_id) {
+                    w.button.style_context().add_class("vdesk-last");
+                }
+            }
+            self.last_visible_id = new_last;
+        }
     }
 
     /// Optimized widget reordering with O(k) complexity where k = number of changed positions
