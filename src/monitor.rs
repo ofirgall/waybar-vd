@@ -71,7 +71,7 @@ pub async fn resilient_monitor_loop(
     Ok(())
 }
 
-/// Single monitoring cycle
+/// Single monitoring cycle with debouncing
 async fn monitor_virtual_desktops_once(
     manager: &Arc<Mutex<VirtualDesktopsManager>>,
     config: &ModuleConfig,
@@ -79,7 +79,6 @@ async fn monitor_virtual_desktops_once(
 ) -> Result<()> {
     log::debug!("Starting monitor cycle...");
 
-    // Create IPC connection
     let mut ipc = HyprlandIPC::with_config(config.retry_max, config.retry_base_delay_ms).await
         .map_err(|e| crate::errors::VirtualDesktopError::IpcConnection {
             source: std::io::Error::new(std::io::ErrorKind::ConnectionRefused, e.to_string())
@@ -87,22 +86,36 @@ async fn monitor_virtual_desktops_once(
 
     log::debug!("Successfully connected to Hyprland IPC for monitoring");
 
-    // Listen for events
+    const DEBOUNCE_MS: u64 = 30;
+    let mut last_update = std::time::Instant::now() - std::time::Duration::from_secs(60);
+
     loop {
         match ipc.listen_for_events().await {
             Ok(event) => {
                 if event.starts_with("vdesk>>") {
                     log::debug!("Received vdesk event: {}", event);
+
+                    let since_last = last_update.elapsed();
+                    if since_last.as_millis() < DEBOUNCE_MS as u128 {
+                        let wait = std::time::Duration::from_millis(DEBOUNCE_MS) - since_last;
+                        log::debug!("Debouncing: waiting {}ms before state query", wait.as_millis());
+                        tokio::time::sleep(wait).await;
+                    }
+
+                    let lock_start = std::time::Instant::now();
                     let mut mgr = manager.lock().await;
+                    let lock_elapsed = lock_start.elapsed();
+                    if lock_elapsed.as_millis() > 10 {
+                        log::warn!("Manager lock took {}ms", lock_elapsed.as_millis());
+                    }
                     if let Err(e) = mgr.update_state().await {
                         log::error!("Failed to update virtual desktop state: {}", e);
                     } else {
+                        last_update = std::time::Instant::now();
                         log::debug!("Virtual desktop state updated, sending to UI thread.");
-                        // Get the new state and send it through the channel
                         let vdesks = mgr.get_virtual_desktops();
                         if let Err(e) = tx.send(vdesks).await {
                             log::error!("Failed to send update to UI thread: {}. Channel closed.", e);
-                            // Channel is closed, so we should exit the loop.
                             return Err(crate::errors::VirtualDesktopError::Internal {
                                 message: "UI channel closed".to_string(),
                             });

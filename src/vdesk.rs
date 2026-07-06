@@ -53,17 +53,28 @@ impl VirtualDesktopsManager {
     
     pub async fn update_state(&mut self) -> Result<()> {
         if self.ipc.is_none() {
+            log::debug!("update_state: no IPC connection, creating new one");
             self.ipc = Some(HyprlandIPC::new().await?);
         }
 
+        log::debug!("update_state: requesting virtual desktop state from Hyprland");
         let state = {
             let ipc = self.ipc.as_mut().unwrap();
-            ipc.get_virtual_desktop_state().await?
+            match ipc.get_virtual_desktop_state().await {
+                Ok(s) => {
+                    log::debug!("update_state: got response ({} bytes)", s.len());
+                    s
+                }
+                Err(e) => {
+                    log::error!("update_state: get_virtual_desktop_state failed: {}", e);
+                    self.ipc = None;
+                    return Err(e);
+                }
+            }
         };
 
-
-
         self.parse_virtual_desktop_state(&state)?;
+        log::debug!("update_state: parsed {} virtual desktops", self.virtual_desktops.len());
 
         Ok(())
     }

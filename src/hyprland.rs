@@ -156,13 +156,77 @@ impl HyprlandIPC {
     pub async fn send_command(&self, command: &str) -> Result<String> {
         use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
-        let mut stream = UnixStream::connect(&self.socket_path).await?;
+        const CONNECT_RETRIES: u32 = 6;
+        const CONNECT_RETRY_BASE_MS: u64 = 50;
 
-        stream.write_all(command.as_bytes()).await?;
+        log::debug!("send_command: connecting to {:?} for command '{}'", self.socket_path, command);
+
+        let mut stream = None;
+        let mut last_err = None;
+
+        for attempt in 1..=CONNECT_RETRIES {
+            match UnixStream::connect(&self.socket_path).await {
+                Ok(s) => {
+                    if attempt > 1 {
+                        log::info!("send_command: connected on attempt {}", attempt);
+                    }
+                    stream = Some(s);
+                    break;
+                }
+                Err(e) => {
+                    let is_transient = matches!(
+                        e.raw_os_error(),
+                        Some(11) | Some(111) | Some(4)
+                    );
+                    if is_transient && attempt < CONNECT_RETRIES {
+                        let delay = CONNECT_RETRY_BASE_MS * 2_u64.pow(attempt - 1);
+                        log::debug!(
+                            "send_command: transient connect error on attempt {} (os_error={:?}), retrying in {}ms",
+                            attempt, e.raw_os_error(), delay
+                        );
+                        tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                        last_err = Some(e);
+                    } else {
+                        log::error!(
+                            "send_command: connect failed on attempt {} (kind={:?}, os_error={:?}): {}",
+                            attempt, e.kind(), e.raw_os_error(), e
+                        );
+                        return Err(e.into());
+                    }
+                }
+            }
+        }
+
+        let mut stream = match stream {
+            Some(s) => s,
+            None => {
+                let e = last_err.unwrap();
+                log::error!(
+                    "send_command: all {} connect attempts failed (last: kind={:?}, os_error={:?}): {}",
+                    CONNECT_RETRIES, e.kind(), e.raw_os_error(), e
+                );
+                return Err(e.into());
+            }
+        };
+
+        if let Err(e) = stream.write_all(command.as_bytes()).await {
+            log::error!(
+                "send_command: write failed for command '{}' (kind={:?}, os_error={:?}): {}",
+                command, e.kind(), e.raw_os_error(), e
+            );
+            return Err(e.into());
+        }
 
         let mut response = Vec::new();
-        stream.read_to_end(&mut response).await?;
+        if let Err(e) = stream.read_to_end(&mut response).await {
+            log::error!(
+                "send_command: read failed for command '{}' (kind={:?}, os_error={:?}): {}",
+                command, e.kind(), e.raw_os_error(), e
+            );
+            return Err(e.into());
+        }
 
+        log::debug!("send_command: '{}' succeeded, response {} bytes", command, response.len());
         Ok(String::from_utf8_lossy(&response).to_string())
     }
 }
