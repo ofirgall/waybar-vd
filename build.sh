@@ -70,7 +70,7 @@ build_library() {
     print_step "Building shared library..."
     
     # Clean previous builds
-    cargo clean
+    # cargo clean
     
     # Build in release mode
     cargo build --release
